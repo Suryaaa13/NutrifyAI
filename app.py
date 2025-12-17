@@ -15,6 +15,36 @@ st.set_page_config(
 )
 
 # =====================================================
+# STYLE (UI/UX RINGAN & NYAMAN)
+# =====================================================
+st.markdown("""
+<style>
+    .main-title {
+        font-size: 42px;
+        font-weight: 700;
+        margin-bottom: 0.2em;
+    }
+    .subtitle {
+        font-size: 18px;
+        color: #555;
+        margin-bottom: 1.5em;
+    }
+    .section-title {
+        font-size: 26px;
+        font-weight: 600;
+        margin-top: 1.2em;
+        margin-bottom: 0.6em;
+    }
+    .soft-box {
+        background-color: #f8f9fa;
+        padding: 16px 20px;
+        border-radius: 12px;
+        margin-bottom: 1em;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# =====================================================
 # LOAD MODEL YOLO (CACHE)
 # =====================================================
 @st.cache_resource
@@ -90,14 +120,14 @@ ATURAN WAJIB:
         return f"❌ Gagal mengambil data gizi dari AI: {e}"
 
 # =====================================================
-# FUNGSI: PROSES GAMBAR & DETEKSI YOLO (FIX LABEL)
+# FUNGSI: PROSES GAMBAR & DETEKSI YOLO (LABEL AKURAT)
 # =====================================================
 def process_image(uploaded_file, conf_threshold):
-    # Decode image (SAMA seperti Flask)
+    # Decode image (BGR)
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-    # Inferensi YOLO (TANPA konversi warna)
+    # Inferensi YOLO (native)
     results = model(image)[0]
 
     detected_objects = []
@@ -112,7 +142,7 @@ def process_image(uploaded_file, conf_threshold):
         x1, y1, x2, y2 = map(int, box.xyxy[0])
         cls = int(box.cls[0])
 
-        # 🔥 INI KUNCI UTAMA (SESUAI KODE SEBELUM)
+        # 🔥 LABEL DIAMBIL LANGSUNG DARI MODEL
         label = model.names[cls]
 
         makanan_labels.append(label)
@@ -140,55 +170,92 @@ def process_image(uploaded_file, conf_threshold):
 # =====================================================
 # UI APLIKASI
 # =====================================================
-st.title("🍽️ Deteksi Gizi Makanan (YOLO + LLM)")
-st.write("Unggah gambar makanan untuk mendeteksi jenis makanan dan estimasi nilai gizinya.")
 
+# HERO
+st.markdown('<div class="main-title">🍽️ NutrifyAI</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="subtitle">'
+    'Agen cerdas untuk deteksi makanan dan estimasi nilai gizi '
+    'menggunakan YOLO dan Large Language Model.'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.divider()
+
+# SIDEBAR
 with st.sidebar:
-    st.header("Pengaturan")
+    st.header("⚙️ Pengaturan Deteksi")
     conf_threshold = st.slider(
         "Confidence Threshold",
-        min_value=0.0,
-        max_value=1.0,
-        value=0.4,
-        step=0.05
+        0.0, 1.0, 0.4, 0.05
+    )
+    st.caption(
+        "Nilai confidence lebih tinggi menghasilkan deteksi yang lebih selektif."
     )
 
+# UPLOAD
+st.markdown('<div class="section-title">📤 Unggah Gambar Makanan</div>', unsafe_allow_html=True)
 uploaded = st.file_uploader(
-    "Unggah Gambar Makanan",
+    "Pilih gambar makanan (JPG / PNG)",
     type=["jpg", "jpeg", "png"]
 )
 
 if uploaded:
-    col1, col2 = st.columns(2)
+    st.markdown('<div class="section-title">🖼️ Pratinjau & Analisis</div>', unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2, gap="large")
 
     with col1:
+        st.markdown('<div class="soft-box">', unsafe_allow_html=True)
         st.image(uploaded, caption="Gambar Asli", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.button("🔎 Analisis Makanan", type="primary"):
-        with st.spinner("Memproses YOLO & AI..."):
+    with col2:
+        st.markdown("""
+        <div class="soft-box">
+        <b>Alur Analisis:</b>
+        <ol>
+            <li>Deteksi jenis makanan menggunakan YOLO</li>
+            <li>Ekstraksi label makanan</li>
+            <li>Estimasi nilai gizi menggunakan LLM</li>
+        </ol>
+        </div>
+        """, unsafe_allow_html=True)
+
+    analyze = st.button(
+        "🔎 Analisis Makanan",
+        type="primary",
+        use_container_width=True
+    )
+
+    if analyze:
+        with st.spinner("Memproses deteksi dan analisis gizi..."):
             uploaded.seek(0)
-
             annotated_img, objects, labels = process_image(
-                uploaded,
-                conf_threshold
+                uploaded, conf_threshold
             )
 
-            with col2:
+        st.divider()
+
+        if objects:
+            st.success(f"Terdeteksi {len(objects)} objek makanan.")
+
+            col1, col2 = st.columns(2, gap="large")
+
+            with col1:
                 st.image(
                     annotated_img,
                     caption="Hasil Deteksi YOLO",
                     use_container_width=True
                 )
 
-            if objects:
-                st.success(f"Terdeteksi {len(objects)} objek makanan.")
-
-                st.subheader("🥗 Analisis Gizi AI")
+            with col2:
+                st.markdown('<div class="section-title">🥗 Estimasi Nilai Gizi</div>', unsafe_allow_html=True)
                 st.markdown(get_nutrition_info(labels))
 
-                with st.expander("Lihat Detail Deteksi"):
-                    st.dataframe(pd.DataFrame(objects))
+            with st.expander("🔍 Detail Teknis Deteksi"):
+                st.dataframe(pd.DataFrame(objects))
 
-            else:
-                st.warning("Tidak ada makanan terdeteksi pada gambar.")
-
+        else:
+            st.warning("Tidak ada makanan yang terdeteksi pada gambar.")
