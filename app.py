@@ -5,18 +5,18 @@ import pandas as pd
 from ultralytics import YOLO
 from groq import Groq
 
-# -----------------------------
-# Konfigurasi Halaman
-# -----------------------------
+# =====================================================
+# KONFIGURASI HALAMAN
+# =====================================================
 st.set_page_config(
     page_title="NutrifyAI",
     page_icon="🍽️",
     layout="wide"
 )
 
-# -----------------------------
-# Load Model YOLO (Cached)
-# -----------------------------
+# =====================================================
+# LOAD MODEL YOLO (CACHE)
+# =====================================================
 @st.cache_resource
 def load_model():
     return YOLO("best.pt")
@@ -24,38 +24,27 @@ def load_model():
 try:
     model = load_model()
 except Exception as e:
-    st.error(f"Gagal memuat model YOLO. Pastikan file 'best.pt' ada. Error: {e}")
+    st.error(f"Gagal memuat model YOLO. Pastikan file 'best.pt' tersedia. Error: {e}")
     st.stop()
 
-# -----------------------------
-# Ambil API Key Groq
-# -----------------------------
+# =====================================================
+# AMBIL GROQ API KEY
+# =====================================================
 try:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"].strip()
 except KeyError:
     st.error("GROQ_API_KEY belum diset di Streamlit Secrets.")
     st.stop()
 
-# -----------------------------
-# Inisialisasi Groq Client (FIX UTAMA)
-# -----------------------------
+# =====================================================
+# INISIALISASI GROQ CLIENT
+# =====================================================
 client = Groq(api_key=GROQ_API_KEY)
-
 GROQ_MODEL = "llama-3.1-8b-instant"
 
-# -----------------------------
-# Class Labels YOLO
-# -----------------------------
-CLASS_NAMES = [
-    'ayam bakar', 'ayam goreng', 'bakso', 'bakwan', 'batagor', 'bihun', 'capcay', 'gado-gado',
-    'ikan goreng', 'kerupuk', 'martabak telur', 'mie', 'nasi goreng', 'nasi putih', 'nugget',
-    'opor ayam', 'pempek', 'rendang', 'roti', 'sate', 'sosis', 'soto', 'steak', 'tahu',
-    'telur', 'tempe', 'terong balado', 'tumis kangkung', 'udang'
-]
-
-# -----------------------------
-# Helper: LLM Gizi (FIX TOTAL)
-# -----------------------------
+# =====================================================
+# FUNGSI: ESTIMASI NILAI GIZI (LLM)
+# =====================================================
 def get_nutrition_info(makanan_list):
     makanan_unik = sorted(set(makanan_list))
     if not makanan_unik:
@@ -100,9 +89,9 @@ ATURAN WAJIB:
     except Exception as e:
         return f"❌ Gagal mengambil data gizi dari AI: {e}"
 
-# -----------------------------
-# Helper: Proses Gambar YOLO
-# -----------------------------
+# =====================================================
+# FUNGSI: PROSES GAMBAR & DETEKSI YOLO (FIX LABEL)
+# =====================================================
 def process_image(uploaded_file, conf_threshold):
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     image = cv2.imdecode(file_bytes, 1)
@@ -119,9 +108,10 @@ def process_image(uploaded_file, conf_threshold):
         cls = int(box.cls[0])
         conf = float(box.conf[0])
 
-        label = CLASS_NAMES[cls] if cls < len(CLASS_NAMES) else results.names[cls]
-        makanan_labels.append(label)
+        # ✅ LABEL LANGSUNG DARI MODEL (BENAR)
+        label = results.names[cls]
 
+        makanan_labels.append(label)
         detected_objects.append({
             "Nama": label,
             "Confidence": round(conf, 2)
@@ -140,17 +130,26 @@ def process_image(uploaded_file, conf_threshold):
 
     return img_draw, detected_objects, makanan_labels
 
-# -----------------------------
-# UI
-# -----------------------------
+# =====================================================
+# UI APLIKASI
+# =====================================================
 st.title("🍽️ Deteksi Gizi Makanan (YOLO + LLM)")
-st.write("Unggah foto makanan untuk mendeteksi dan mengestimasi nilai gizinya.")
+st.write("Unggah gambar makanan untuk mendeteksi jenis makanan dan estimasi nilai gizinya.")
 
 with st.sidebar:
     st.header("Pengaturan")
-    conf_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.25, 0.05)
+    conf_threshold = st.slider(
+        "Confidence Threshold",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.4,
+        step=0.05
+    )
 
-uploaded = st.file_uploader("Unggah Gambar", type=["jpg", "jpeg", "png"])
+uploaded = st.file_uploader(
+    "Unggah Gambar Makanan",
+    type=["jpg", "jpeg", "png"]
+)
 
 if uploaded:
     col1, col2 = st.columns(2)
@@ -161,10 +160,18 @@ if uploaded:
     if st.button("🔎 Analisis Makanan", type="primary"):
         with st.spinner("Memproses YOLO & AI..."):
             uploaded.seek(0)
-            annotated_img, objects, labels = process_image(uploaded, conf_threshold)
+
+            annotated_img, objects, labels = process_image(
+                uploaded,
+                conf_threshold
+            )
 
             with col2:
-                st.image(annotated_img, caption="Hasil Deteksi YOLO", use_container_width=True)
+                st.image(
+                    annotated_img,
+                    caption="Hasil Deteksi YOLO",
+                    use_container_width=True
+                )
 
             if objects:
                 st.success(f"Terdeteksi {len(objects)} objek makanan.")
@@ -172,8 +179,8 @@ if uploaded:
                 st.subheader("🥗 Analisis Gizi AI")
                 st.markdown(get_nutrition_info(labels))
 
-                with st.expander("Lihat Detail Deteksi (JSON)"):
+                with st.expander("Lihat Detail Deteksi"):
                     st.dataframe(pd.DataFrame(objects))
-            else:
-                st.warning("Tidak ada makanan terdeteksi.")
 
+            else:
+                st.warning("Tidak ada makanan terdeteksi pada gambar.")
