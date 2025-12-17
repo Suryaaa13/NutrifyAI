@@ -53,8 +53,7 @@ CLASS_NAMES = [
 # -----------------------------
 def get_nutrition_info(makanan_list):
     """
-    Mengirim request ke Groq LLM untuk mendapatkan estimasi gizi
-    dalam bentuk tabel Markdown yang konsisten.
+    Request ke Groq LLM untuk estimasi gizi dalam tabel Markdown konsisten
     """
     makanan_unik = sorted(set(makanan_list))
     if not makanan_unik:
@@ -62,27 +61,24 @@ def get_nutrition_info(makanan_list):
 
     makanan_str = ", ".join(makanan_unik)
 
-    # PROMPT TEROPTIMASI (LOCKED FORMAT)
     prompt = f"""
 Kamu adalah seorang ahli gizi profesional.
 
-Tugas kamu adalah memberikan ESTIMASI kandungan gizi rata-rata per 1 porsi standar
+Berikan ESTIMASI nilai gizi rata-rata per 1 porsi standar
 untuk setiap makanan berikut:
 {makanan_str}
 
 ATURAN WAJIB:
-1. Jawaban HARUS dalam bentuk tabel Markdown
-2. Gunakan TEPAT kolom berikut:
-   | Makanan | Kalori (kkal) | Protein (g) | Lemak (g) | Karbohidrat (g) |
-3. Satuan harus konsisten (kkal, gram)
-4. Tidak boleh ada teks penjelasan, catatan, atau paragraf di luar tabel
-5. Gunakan bahasa Indonesia
-6. Jika makanan tidak umum, gunakan estimasi wajar berdasarkan makanan sejenis
+- Jawaban HARUS berupa 1 tabel Markdown
+- Kolom TEPAT sebagai berikut:
+| Makanan | Kalori (kkal) | Protein (g) | Lemak (g) | Karbohidrat (g) |
+- Gunakan bahasa Indonesia
+- Tanpa teks penjelasan di luar tabel
 """
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
     }
 
     payload = {
@@ -92,7 +88,7 @@ ATURAN WAJIB:
                 "role": "system",
                 "content": (
                     "Kamu adalah AI ahli gizi. "
-                    "Jawaban harus berupa tabel Markdown saja tanpa teks tambahan."
+                    "Jawaban harus berupa tabel Markdown saja."
                 )
             },
             {
@@ -100,22 +96,22 @@ ATURAN WAJIB:
                 "content": prompt
             }
         ],
-        "temperature": 0.2,  # lebih rendah = lebih konsisten
-        "max_tokens": 600
+        "temperature": 0.2,
+        "max_tokens": 700
     }
 
     try:
         response = requests.post(
-            "https://api.groq.com/v1/chat/completions",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=payload,
             timeout=30
         )
-        response.raise_for_status()
 
+        response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         return f"❌ Gagal mengambil data gizi dari AI: {e}"
     
 def process_image(uploaded_file, conf_threshold):
