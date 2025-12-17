@@ -41,7 +41,7 @@ except KeyError:
 # -----------------------------
 client = Groq(api_key=GROQ_API_KEY)
 
-GROQ_MODEL = "llama3-8b-8192"
+GROQ_MODEL = "llama-3.1-8b-instant"
 
 # -----------------------------
 # Class Labels YOLO
@@ -176,3 +176,4 @@ if uploaded:
                     st.dataframe(pd.DataFrame(objects))
             else:
                 st.warning("Tidak ada makanan terdeteksi.")
+
