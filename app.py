@@ -93,23 +93,27 @@ ATURAN WAJIB:
 # FUNGSI: PROSES GAMBAR & DETEKSI YOLO (FIX LABEL)
 # =====================================================
 def process_image(uploaded_file, conf_threshold):
+    # Decode image (SAMA seperti Flask)
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, 1)
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-    results = model(image_rgb, conf=conf_threshold)[0]
+    # Inferensi YOLO (TANPA konversi warna)
+    results = model(image)[0]
 
     detected_objects = []
     makanan_labels = []
-    img_draw = image_rgb.copy()
+    img_draw = image.copy()
 
     for box in results.boxes:
+        conf = float(box.conf[0])
+        if conf < conf_threshold:
+            continue
+
         x1, y1, x2, y2 = map(int, box.xyxy[0])
         cls = int(box.cls[0])
-        conf = float(box.conf[0])
 
-        # ✅ LABEL LANGSUNG DARI MODEL (BENAR)
-        label = results.names[cls]
+        # 🔥 INI KUNCI UTAMA (SESUAI KODE SEBELUM)
+        label = model.names[cls]
 
         makanan_labels.append(label)
         detected_objects.append({
@@ -117,16 +121,19 @@ def process_image(uploaded_file, conf_threshold):
             "Confidence": round(conf, 2)
         })
 
-        cv2.rectangle(img_draw, (x1, y1), (x2, y2), (0, 255, 0), 3)
+        cv2.rectangle(img_draw, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(
             img_draw,
-            f"{label} {conf:.2f}",
+            f"{label} ({conf:.2f})",
             (x1, y1 - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
+            0.7,
             (0, 255, 0),
             2
         )
+
+    # Konversi ke RGB hanya untuk ditampilkan
+    img_draw = cv2.cvtColor(img_draw, cv2.COLOR_BGR2RGB)
 
     return img_draw, detected_objects, makanan_labels
 
@@ -184,3 +191,4 @@ if uploaded:
 
             else:
                 st.warning("Tidak ada makanan terdeteksi pada gambar.")
+
